@@ -115,6 +115,7 @@ h1 small{display:block;font-family:"Gowun Dodum",sans-serif;font-size:13px;color
 #board li.me{background:var(--mine)}
 #board li.gap{display:block;text-align:center;color:var(--muted);padding:0;line-height:1}
 #board li.empty{display:block;font-size:13px;color:var(--muted)}
+#upd{font-size:12px;color:var(--muted);text-align:center;margin-top:4px}
 #more{margin-top:4px;width:100%;background:none;border:0;border-top:1px dashed var(--line);
   color:var(--muted);font:inherit;font-size:13px;padding:6px 0 2px;cursor:pointer}
 
@@ -224,6 +225,7 @@ main{flex:1;display:flex;flex-direction:column;align-items:center;justify-conten
       <h2>학교 랭킹 <span id="live" title="연결 상태"></span></h2>
       <ol id="list"></ol>
       <button id="more" type="button" hidden>더 보기</button>
+      <div id="upd">10분마다 집계돼요</div>
     </aside>
   </header>
 
@@ -365,7 +367,7 @@ const firebaseConfig = {
 
   let selected = null;
   let state = { school:null, counts:{}, owned:[], equip:{...DEFAULT_EQUIP} };
-  let fs = null, uid = null, connected = false, online = false;
+  let fs = null, uid = null, connected = false, online = false, lastFetch = 0;
   let serverTotals = new Map();     // 학교별 서버 합계
   let pending = {};                 // 아직 서버에 안 보낸 클릭
   let writing = false, dirty = false, timer = null;
@@ -458,6 +460,10 @@ const firebaseConfig = {
     $('more').hidden = ranked.length <= 3;
     $('more').textContent = expanded ? '접기' : '10위까지 보기';
     $('live').classList.toggle('on', connected);
+    if (lastFetch){
+      const m = Math.floor((Date.now() - lastFetch) / 60000);
+      $('upd').textContent = (m < 1 ? '방금' : m + '분 전') + ' 집계 · 10분마다 갱신';
+    }
     $('status').textContent = statusMsg;
 
     const open = !me || $('reg').dataset.force === '1';
@@ -590,45 +596,70 @@ const firebaseConfig = {
   document.querySelectorAll('.tabs button').forEach(b => b.addEventListener('click', () => { shopTab = b.dataset.tab; $('shopMsg').textContent = ''; renderShop(); }));
   document.addEventListener('keydown', e => { if (e.key === 'Escape') $('shop').classList.remove('open'); });
 
-  // ---------- syncing (Firebase) ----------
-  const MAX_PER_WRITE = 100;   // 보안 규칙과 같은 값
-  function schedule(){
-    if (!fs || !uid) return;
-    dirty = true;
-    if (!timer && !writing) timer = setTimeout(flush, 1500);
-  }
+  // ---------- syncing (Firebase, 절약 모드) ----------
+  // 내 클릭은 화면에 바로 반영되고, 서버 저장과 랭킹 집계는 10분마다 한 번씩 해요.
+  const SYNC_MS = 10 * 60 * 1000;
+  const MAX_PER_WRITE = 15000;  // 보안 규칙과 같은 값
+  function schedule(){ dirty = true; }
+
   async function flush(){
-    timer = null;
-    if (writing || !dirty || !fs || !uid) return;
+    if (writing || !fs || !uid) return;
+    const hasPending = Object.keys(pending).length > 0;
+    if (!dirty && !hasPending) return;
     writing = true; dirty = false;
     const sending = {};
-    for (const [s,n] of Object.entries(pending)){
+    for (const [sch,n] of Object.entries(pending)){
       const k = Math.min(n, MAX_PER_WRITE);
-      if (k > 0 && SET.has(s)) sending[s] = k;
+      if (k > 0 && SET.has(sch)) sending[sch] = k;
     }
-    for (const [s,k] of Object.entries(sending)){ pending[s] -= k; if (pending[s] <= 0) delete pending[s]; }
+    for (const [sch,k] of Object.entries(sending)){ pending[sch] -= k; if (pending[sch] <= 0) delete pending[sch]; }
     try{
       const batch = fs.batch();
       const inc = firebase.firestore.FieldValue.increment;
-      for (const [s,k] of Object.entries(sending)) batch.set(fs.collection('schools').doc(s), {name: s, total: inc(k)}, {merge: true});
+      for (const [sch,k] of Object.entries(sending)) batch.set(fs.collection('schools').doc(sch), {name: sch, total: inc(k)}, {merge: true});
       batch.set(fs.collection('users').doc(uid), {
         school: state.school || '', counts: {...state.counts}, owned: [...state.owned], equip: {...state.equip},
         updatedAt: firebase.firestore.FieldValue.serverTimestamp()
       });
       await batch.commit();
+      // 서버에 반영된 만큼 화면 합계에 미리 더해 둬요 (다음 집계 전까지)
+      for (const [sch,k] of Object.entries(sending)) serverTotals.set(sch, (serverTotals.get(sch)||0) + k);
       if (statusMsg.startsWith('저장이')) statusMsg = '';
     }catch(e){
-      for (const [s,k] of Object.entries(sending)) pending[s] = (pending[s]||0) + k;
+      for (const [sch,k] of Object.entries(sending)) pending[sch] = (pending[sch]||0) + k;
       dirty = true;
-      statusMsg = '저장이 잠시 안 되고 있어요. 자동으로 다시 시도할게요.';
-      render();
+      statusMsg = '저장이 잠시 안 되고 있어요. 다음 집계 때 다시 시도할게요.';
     }finally{
-      writing = false;
-      if (Object.keys(pending).length) dirty = true;
-      if (dirty) timer = setTimeout(flush, writing ? 3000 : 1500);
+      writing = false; render();
     }
   }
-  document.addEventListener('visibilitychange', () => { if (document.hidden && dirty){ clearTimeout(timer); flush(); } });
+
+  async function fetchRanking(){
+    if (!fs) return;
+    try{
+      const snap = await fs.collection('schools').orderBy('total','desc').limit(100).get();
+      const m = new Map();
+      snap.forEach(d => { const v = d.data().total; if (SET.has(d.id) && typeof v === 'number' && v > 0) m.set(d.id, v); });
+      serverTotals = m; online = true; connected = true; lastFetch = Date.now();
+      if (statusMsg.startsWith('랭킹')) statusMsg = '';
+    }catch(e){
+      statusMsg = '랭킹을 불러오지 못했어요. 다음 집계 때 다시 시도할게요.';
+    }
+    render();
+  }
+
+  async function syncNow(){ await flush(); await fetchRanking(); }
+
+  // 10분마다 저장 + 집계 (화면을 보고 있을 때만)
+  setInterval(() => { if (!document.hidden) syncNow(); }, SYNC_MS);
+  // 집계 시간 표시만 1분마다 새로 그리기 (서버 사용 없음)
+  setInterval(() => { if (lastFetch) render(); }, 60000);
+  // 창을 닫거나 다른 앱으로 갈 때는 클릭을 바로 저장해서 잃어버리지 않게
+  document.addEventListener('visibilitychange', () => {
+    if (document.hidden) flush();
+    else if (lastFetch && Date.now() - lastFetch > SYNC_MS) syncNow();
+  });
+  window.addEventListener('pagehide', () => { flush(); });
 
   function mergeMine(data){
     const remote = cleanCounts(data.counts);
@@ -648,22 +679,12 @@ const firebaseConfig = {
       fs = firebase.firestore();
     }catch(e){ statusMsg = '서버에 연결하지 못했어요. 기록은 이 기기에 저장돼요.'; render(); return; }
 
-    const slow = setTimeout(() => { if (!connected){ statusMsg = '랭킹 연결이 느려요. 잠시만 기다려 주세요.'; render(); } }, 10000);
-    fs.collection('schools').orderBy('total','desc').limit(100).onSnapshot(snap => {
-      const m = new Map();
-      snap.forEach(d => { const v = d.data().total; if (SET.has(d.id) && typeof v === 'number' && v > 0) m.set(d.id, v); });
-      serverTotals = m; online = true;
-      if (!snap.metadata.fromCache){
-        clearTimeout(slow); connected = true;
-        if (statusMsg.startsWith('랭킹 연결이 느려요')) statusMsg = '';
-      }
-      render();
-    }, () => { clearTimeout(slow); statusMsg = '랭킹을 불러오지 못했어요.'; render(); });
+    fetchRanking();
 
     firebase.auth().onAuthStateChanged(async u => {
       if (!u){   // 익명 계정이 삭제·만료되면 새 계정으로 자동 재로그인
         uid = null;
-        firebase.auth().signInAnonymously().catch(() => {});
+        firebase.auth().signInAnonymously().catch(() => { statusMsg = '로그인에 실패했어요. 새로고침해 주세요.'; render(); });
         return;
       }
       uid = u.uid;
@@ -672,7 +693,6 @@ const firebaseConfig = {
         if (doc.exists) mergeMine(doc.data());
       }catch(e){}
       render();
-      if (Object.keys(pending).length || state.school) schedule();
     });
   }
 
