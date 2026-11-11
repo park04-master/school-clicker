@@ -1,0 +1,713 @@
+<!doctype html>
+<html lang="ko" data-bg="note">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>학교 대항 클릭전</title>
+<meta name="description" content="누를수록 우리 학교가 올라가요. 서울 대학교 실시간 클릭 랭킹전">
+<!-- 공유 미리보기: og:image 주소는 본인 사이트 주소로 바꾸세요 -->
+<meta property="og:type" content="website">
+<meta property="og:title" content="학교 대항 클릭전">
+<meta property="og:description" content="우리 학교, 지금 몇 위? 누를수록 우리 학교가 올라가요">
+<meta property="og:image" content="https://park04-master.github.io/school-clicker/og.png">
+<meta name="twitter:card" content="summary_large_image">
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Black+Han+Sans&family=Gowun+Dodum&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#F7F3E6; --ink:#1F2A24; --muted:#6E6C5F; --line:#D8D0B8; --rule:#C9DDEB;
+  --margin:#E7A9A1; --panel:#FFFDF6; --hot:#C93C32; --mine:#FFF0B8;
+  --gold:#F2B705; --gold-deep:#B98A00; --gold-ink:#2A1E00;
+  color-scheme:light;
+  box-sizing:border-box;
+  padding-top:env(safe-area-inset-top,0px);
+  padding-bottom:env(safe-area-inset-bottom,0px);
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --bg:#1E2B24; --ink:#EEEBDD; --muted:#A2AC9E; --line:#3A4C42; --rule:#26352D;
+    --margin:#4A3A36; --panel:#25352C; --hot:#F07A68; --mine:#3D4A2A;
+    color-scheme:dark;
+  }
+}
+:root[data-theme="dark"]{
+  --bg:#1E2B24; --ink:#EEEBDD; --muted:#A2AC9E; --line:#3A4C42; --rule:#26352D;
+  --margin:#4A3A36; --panel:#25352C; --hot:#F07A68; --mine:#3D4A2A;
+  color-scheme:dark;
+}
+/* Purchased backgrounds set their own colors */
+:root[data-bg="grid"]{--bg:#FBFBF7;--ink:#1D2633;--muted:#646C7A;--line:#D6DCE4;--panel:#FFFFFF;--mine:#FFF0B8;--hot:#C93C32;color-scheme:light}
+:root[data-bg="chalk"]{--bg:#23392E;--ink:#F1EFE4;--muted:#A9B8AC;--line:#3E5649;--panel:#2C4538;--mine:#4A5A30;--hot:#F49A7C;color-scheme:dark}
+:root[data-bg="sunset"]{--bg:#FFB27A;--ink:#2A1630;--muted:#563A55;--line:#E2A99A;--panel:#FFF4EC;--mine:#FFE1A8;--hot:#A3173A;color-scheme:light}
+:root[data-bg="night"]{--bg:#141A33;--ink:#EEF0FF;--muted:#A3A9CC;--line:#2D3561;--panel:#1E2546;--mine:#3E3C22;--hot:#FF9FB2;color-scheme:dark}
+
+*,*::before,*::after{box-sizing:border-box}
+html,body{height:100%;margin:0}
+html{scroll-padding-top:env(safe-area-inset-top,0px)}
+body{
+  background-color:var(--bg);color:var(--ink);
+  font-family:"Gowun Dodum","Apple SD Gothic Neo","Malgun Gothic",system-ui,sans-serif;
+  font-size:16px;line-height:1.5;-webkit-tap-highlight-color:transparent;
+}
+.bg-note{background-color:var(--bg);background-image:
+  linear-gradient(90deg,transparent 30px,var(--margin) 30px,var(--margin) 32px,transparent 32px),
+  repeating-linear-gradient(180deg,transparent 0 31px,var(--rule) 31px 32px)}
+.bg-grid{background-color:#FBFBF7;background-image:
+  linear-gradient(#DCE6F0 1px,transparent 1px),linear-gradient(90deg,#DCE6F0 1px,transparent 1px);
+  background-size:24px 24px}
+.bg-chalk{background-color:#23392E;background-image:
+  radial-gradient(ellipse at 18% 28%,rgba(255,255,255,.07),transparent 50%),
+  radial-gradient(ellipse at 82% 72%,rgba(255,255,255,.06),transparent 45%),
+  linear-gradient(0deg,#5B3E28 0 10px,transparent 10px)}
+.bg-sunset{background-color:#FFB27A;background-image:linear-gradient(180deg,#FFC58A 0%,#FF8F7E 50%,#D69BD6 100%)}
+.bg-night{background-color:#141A33;background-image:
+  radial-gradient(1.5px 1.5px at 22px 34px,#fff 50%,transparent 51%),
+  radial-gradient(1px 1px at 78px 90px,#cfd6ff 50%,transparent 51%),
+  radial-gradient(2px 2px at 110px 18px,#fff6c8 50%,transparent 51%),
+  radial-gradient(1px 1px at 52px 128px,#fff 50%,transparent 51%);
+  background-size:150px 150px}
+body.bg-sunset,body.bg-night,body.bg-chalk{background-attachment:fixed}
+
+.wrap{max-width:720px;margin:0 auto;padding:14px 16px 40px 44px;min-height:100%;display:flex;flex-direction:column}
+body:not(.bg-note) .wrap{padding-left:16px}
+
+header{display:flex;justify-content:space-between;align-items:flex-start;gap:12px}
+.hl{min-width:0}
+.wallet{display:flex;align-items:center;gap:6px;flex-wrap:wrap}
+.coinpill{
+  display:inline-flex;align-items:center;gap:6px;background:var(--panel);
+  border:2px solid var(--ink);border-radius:999px;padding:3px 12px 3px 4px;
+  font-family:"Black Han Sans",sans-serif;font-size:18px;font-variant-numeric:tabular-nums;
+}
+.coin{width:22px;height:22px;border-radius:50%;flex:0 0 auto;display:inline-grid;place-items:center;
+  background:radial-gradient(circle at 35% 30%,#FFE58A,#F2B705 55%,#B98A00);
+  border:1.5px solid #7A5A00;color:#5A4100;font-size:12px;font-family:"Black Han Sans",sans-serif}
+.coin::after{content:"C"}
+.coinpill.bump{animation:bump .25s ease-out}
+@keyframes bump{50%{transform:scale(1.08)}}
+#shopBtn{
+  font-family:"Black Han Sans",sans-serif;font-size:16px;background:var(--gold);color:var(--gold-ink);
+  border:2px solid var(--ink);border-radius:999px;padding:4px 14px;cursor:pointer;box-shadow:2px 2px 0 var(--ink);
+}
+#shopBtn:active{transform:translate(2px,2px);box-shadow:none}
+h1{font-family:"Black Han Sans","Apple SD Gothic Neo",sans-serif;font-weight:400;
+  font-size:clamp(20px,5.5vw,30px);line-height:1.1;margin:12px 0 0;letter-spacing:-.5px}
+h1 small{display:block;font-family:"Gowun Dodum",sans-serif;font-size:13px;color:var(--muted);margin-top:6px;letter-spacing:0}
+
+#board{
+  flex:0 0 auto;width:min(200px,46vw);background:var(--panel);
+  border:2px solid var(--ink);border-radius:4px 14px 4px 14px;
+  padding:10px 12px 8px;box-shadow:4px 4px 0 var(--ink);
+}
+#board h2{font-family:"Black Han Sans",sans-serif;font-weight:400;font-size:16px;margin:0 0 6px;display:flex;justify-content:space-between;align-items:center}
+#live{width:8px;height:8px;border-radius:50%;background:var(--line);display:inline-block}
+#live.on{background:#3BA55C}
+#board ol{list-style:none;margin:0;padding:0;font-size:14px}
+#board li{display:grid;grid-template-columns:22px 1fr auto;gap:4px;align-items:baseline;padding:3px 4px;border-radius:4px}
+#board li .r{font-family:"Black Han Sans",sans-serif;color:var(--muted)}
+#board li:nth-child(1) .r{color:var(--hot)}
+#board li .n{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+#board li .c{font-variant-numeric:tabular-nums;font-size:13px;color:var(--muted)}
+#board li.me{background:var(--mine)}
+#board li.gap{display:block;text-align:center;color:var(--muted);padding:0;line-height:1}
+#board li.empty{display:block;font-size:13px;color:var(--muted)}
+#more{margin-top:4px;width:100%;background:none;border:0;border-top:1px dashed var(--line);
+  color:var(--muted);font:inherit;font-size:13px;padding:6px 0 2px;cursor:pointer}
+
+main{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;padding-top:20px}
+#schoolName{font-size:18px;margin:0;display:inline-flex;align-items:center;gap:6px;flex-wrap:wrap;justify-content:center}
+#schoolName b{font-family:"Black Han Sans",sans-serif;font-weight:400;font-size:24px}
+#rank{font-size:13px;color:var(--gold-ink);background:var(--gold);padding:1px 8px;border-radius:999px}
+#total{font-family:"Black Han Sans",sans-serif;font-weight:400;font-size:clamp(56px,18vw,104px);
+  line-height:1;margin:10px 0 2px;font-variant-numeric:tabular-nums;letter-spacing:-1px}
+.sub{color:var(--muted);font-size:14px;margin:0}
+
+/* Button skins */
+.skin-basic{--sk:#F2B705;--skd:#B98A00;--ski:#2A1E00}
+
+#tap{
+  margin:26px 0 18px;width:min(220px,58vw);aspect-ratio:1;border-radius:50%;
+  border:3px solid var(--ink);background-color:var(--sk);color:var(--ski);
+  font-family:"Black Han Sans",sans-serif;font-size:clamp(34px,10vw,48px);
+  box-shadow:0 10px 0 var(--skd),0 10px 0 3px var(--ink);
+  cursor:pointer;touch-action:manipulation;user-select:none;-webkit-user-select:none;
+  transition:transform 60ms ease,box-shadow 60ms ease;
+}
+#tap.shaped{background:none;border:0;box-shadow:none;border-radius:0;padding:0;width:min(250px,64vw)}
+#tap.shaped svg{width:100%;height:100%;display:block;overflow:visible;filter:drop-shadow(0 8px 0 rgba(0,0,0,.32));transition:transform 60ms ease,filter 60ms ease}
+#tap.shaped:active{transform:none;box-shadow:none}
+#tap.shaped:active svg{transform:translateY(6px);filter:drop-shadow(0 2px 0 rgba(0,0,0,.32))}
+.pv svg{width:64px;height:64px;overflow:visible}
+#tap:active{transform:translateY(8px);box-shadow:0 2px 0 var(--skd),0 2px 0 3px var(--ink)}
+#tap:focus-visible{outline:3px dashed var(--hot);outline-offset:8px}
+#mine b{color:var(--ink);font-variant-numeric:tabular-nums}
+#status{font-size:13px;color:var(--hot);min-height:1.5em;margin:8px 0 0}
+#change{margin-top:10px;background:none;border:0;color:var(--muted);text-decoration:underline;text-underline-offset:3px;font:inherit;font-size:14px;cursor:pointer;padding:6px}
+
+/* Click effects */
+.fx{position:fixed;pointer-events:none;z-index:5;font-family:"Black Han Sans",sans-serif;line-height:1}
+.fx-up{font-size:24px;color:var(--hot);animation:up .7s ease-out forwards}
+.fx-float{font-size:28px;animation:float .9s ease-out forwards}
+.fx-cap{font-size:40px;animation:cap .9s cubic-bezier(.2,.8,.3,1) forwards}
+.fx-dot{width:10px;height:10px;border-radius:50%;animation:burst .6s ease-out forwards}
+@keyframes up{from{opacity:1;transform:translate(-50%,-50%)}to{opacity:0;transform:translate(-50%,-170%)}}
+@keyframes float{0%{opacity:1;transform:translate(-50%,-50%) scale(.6)}30%{transform:translate(-50%,-90%) scale(1.15)}100%{opacity:0;transform:translate(calc(-50% + var(--dx)),-260%) scale(1)}}
+@keyframes cap{0%{opacity:1;transform:translate(-50%,-50%) rotate(0) scale(.5)}100%{opacity:0;transform:translate(calc(-50% + var(--dx)),-320%) rotate(var(--rot)) scale(1.1)}}
+@keyframes burst{from{opacity:1;transform:translate(-50%,-50%)}to{opacity:0;transform:translate(calc(-50% + var(--dx)),calc(-50% + var(--dy))) scale(.4)}}
+
+/* Modals */
+.modal{position:fixed;inset:0;display:none;align-items:center;justify-content:center;padding:20px;z-index:10;
+  background:color-mix(in srgb,var(--bg) 70%,transparent);backdrop-filter:blur(3px)}
+.modal.open{display:flex}
+.card{width:min(400px,100%);max-height:100%;display:flex;flex-direction:column;background:var(--panel);
+  border:2px solid var(--ink);border-radius:4px 18px 4px 18px;box-shadow:6px 6px 0 var(--ink);padding:20px}
+.card h3{font-family:"Black Han Sans",sans-serif;font-weight:400;font-size:24px;margin:0 0 4px}
+.card p{margin:0 0 14px;color:var(--muted);font-size:14px}
+
+#regInput{width:100%;font:inherit;font-size:17px;padding:11px 12px;border:2px solid var(--ink);border-radius:8px;background:var(--bg);color:var(--ink)}
+#regInput:focus-visible{outline:3px solid var(--gold);outline-offset:1px}
+#pick{list-style:none;margin:10px 0 0;padding:0;max-height:min(44vh,320px);overflow-y:auto;border:2px solid var(--ink);border-radius:8px;background:var(--bg)}
+#pick button{width:100%;display:flex;justify-content:space-between;align-items:baseline;gap:8px;text-align:left;background:none;border:0;border-bottom:1px solid var(--line);padding:11px 12px;font:inherit;font-size:16px;color:var(--ink);cursor:pointer}
+#pick li:last-child button{border-bottom:0}
+#pick button span{color:var(--muted);font-size:13px;font-variant-numeric:tabular-nums;white-space:nowrap}
+#pick button[aria-selected="true"]{background:var(--gold);color:var(--gold-ink)}
+#pick button[aria-selected="true"] span{color:var(--gold-ink)}
+#pick .none{padding:12px;color:var(--muted);font-size:14px}
+#regErr{color:var(--hot);font-size:13px;min-height:1.4em;margin-top:6px}
+.row{display:flex;gap:8px;margin-top:8px}
+.row button{font:inherit;font-size:16px;padding:12px;border-radius:8px;border:2px solid var(--ink);cursor:pointer;color:var(--ink);background:transparent}
+#regGo{flex:1;background:var(--gold);color:var(--gold-ink);font-family:"Black Han Sans",sans-serif;font-size:18px}
+#regGo:disabled{opacity:.45;cursor:default}
+
+/* Shop */
+.shopcard{width:min(460px,100%);height:min(620px,100%);padding:16px}
+.shophead{display:flex;align-items:center;gap:10px;margin-bottom:12px}
+.shophead h3{margin:0;flex:1}
+#shopClose{background:none;border:2px solid var(--ink);border-radius:50%;width:36px;height:36px;font-size:16px;color:var(--ink);cursor:pointer}
+.tabs{display:flex;gap:6px;margin-bottom:12px}
+.tabs button{flex:1;font:inherit;font-size:15px;padding:8px 4px;border:2px solid var(--ink);border-radius:8px;background:transparent;color:var(--ink);cursor:pointer}
+.tabs button[aria-selected="true"]{background:var(--ink);color:var(--panel)}
+#items{list-style:none;margin:0;padding:2px 2px 8px;overflow-y:auto;flex:1;display:grid;grid-template-columns:repeat(auto-fill,minmax(130px,1fr));gap:10px;align-content:start}
+.item{border:2px solid var(--ink);border-radius:10px;padding:8px;background:var(--bg);display:flex;flex-direction:column;gap:6px}
+.item.on{outline:3px solid var(--gold);outline-offset:1px}
+.pv{height:70px;border-radius:6px;border:1.5px solid var(--line);display:grid;place-items:center;overflow:hidden}
+.pv:not(.pv-bg){background:var(--panel)}
+.pv-bg.bg-note{background-color:#F7F3E6;--margin:#E7A9A1;--rule:#C9DDEB}
+.pv-btn{width:46px;height:46px;border-radius:50%;border:2px solid #1F2A24;background-color:var(--sk);box-shadow:0 4px 0 var(--skd)}
+.pv-fx{font-size:30px;font-family:"Black Han Sans",sans-serif;color:var(--hot)}
+.item b{font-weight:400;font-size:15px}
+.item button{font:inherit;font-size:14px;padding:7px 4px;border-radius:7px;border:2px solid var(--ink);cursor:pointer;display:flex;align-items:center;justify-content:center;gap:4px;background:var(--gold);color:var(--gold-ink)}
+.item button .coin{width:16px;height:16px;font-size:9px}
+.item button.equip{background:transparent;color:var(--ink)}
+.item button.equipped{background:var(--ink);color:var(--panel);cursor:default}
+.item button:disabled:not(.equipped){opacity:.45;cursor:default}
+#shopMsg{font-size:13px;color:var(--muted);min-height:1.4em;margin:8px 0 0;text-align:center}
+
+@media (prefers-reduced-motion: reduce){ #tap{transition:none} .fx{display:none} .coinpill.bump{animation:none} }
+</style>
+</head>
+<body class="bg-note">
+<div class="wrap">
+  <header>
+    <div class="hl">
+      <div class="wallet">
+        <span class="coinpill" id="coinPill" aria-label="코인 잔액"><span class="coin" aria-hidden="true"></span><span id="coins">0</span></span>
+        <button id="shopBtn" type="button">상점</button>
+      </div>
+      <h1>학교 대항<br>클릭전<small>누를수록 우리 학교가 올라가요</small></h1>
+    </div>
+    <aside id="board" aria-label="학교별 랭킹">
+      <h2>학교 랭킹 <span id="live" title="연결 상태"></span></h2>
+      <ol id="list"></ol>
+      <button id="more" type="button" hidden>더 보기</button>
+    </aside>
+  </header>
+
+  <main>
+    <p id="schoolName"><b id="schoolText">학교를 등록하세요</b><span id="rank" hidden></span></p>
+    <div id="total" aria-live="polite">0</div>
+    <p class="sub">우리 학교 누적 클릭</p>
+    <button id="tap" class="skin-basic" type="button" aria-label="클릭해서 우리 학교 점수 올리기">클릭!</button>
+    <p class="sub" id="mine">내가 보탠 클릭 <b id="mineN">0</b></p>
+    <p id="status" role="status"></p>
+    <button id="change" type="button">학교 바꾸기</button>
+  </main>
+</div>
+
+<div id="reg" class="modal" role="dialog" aria-modal="true" aria-labelledby="regTitle">
+  <form id="regForm" class="card" autocomplete="off">
+    <h3 id="regTitle">어느 학교 다녀요?</h3>
+    <p>목록에서 학교를 골라 주세요. 같은 학교 친구들과 클릭 수가 합쳐져요.</p>
+    <input id="regInput" type="search" maxlength="30" placeholder="학교 이름 검색" aria-label="학교 검색">
+    <ul id="pick" role="listbox" aria-label="학교 목록"></ul>
+    <div id="regErr"></div>
+    <div class="row">
+      <button id="regCancel" type="button">취소</button>
+      <button id="regGo" type="submit" disabled>선택하기</button>
+    </div>
+  </form>
+</div>
+
+<div id="shop" class="modal" role="dialog" aria-modal="true" aria-labelledby="shopTitle">
+  <div class="card shopcard">
+    <div class="shophead">
+      <h3 id="shopTitle">상점</h3>
+      <span class="coinpill"><span class="coin" aria-hidden="true"></span><span id="coins2">0</span></span>
+      <button id="shopClose" type="button" aria-label="상점 닫기">✕</button>
+    </div>
+    <div class="tabs" role="tablist">
+      <button type="button" role="tab" data-tab="bg" aria-selected="true">배경</button>
+      <button type="button" role="tab" data-tab="btn" aria-selected="false">버튼 스킨</button>
+      <button type="button" role="tab" data-tab="fx" aria-selected="false">클릭 효과</button>
+    </div>
+    <ul id="items"></ul>
+    <p id="shopMsg" role="status"></p>
+  </div>
+</div>
+
+<script>
+// ===== Firebase 설정: 콘솔에서 복사한 값으로 바꾸세요 =====
+const firebaseConfig = {
+  apiKey: "AIzaSyCVUuMDVoIrI6tTkBVKZq9bikSJ1Tsv4Ys",
+  authDomain: "anonymous-f56e4.firebaseapp.com",
+  projectId: "anonymous-f56e4",
+  appId: "1:698805797322:web:8e0238c83e8fad34130f33"
+};
+(function(){
+  const $ = id => document.getElementById(id);
+  const LS = 'school-clicker:v1';
+  const fmt = n => n.toLocaleString('ko-KR');
+
+  // ===== 학교 목록: 새 학교는 여기에 추가 =====
+  const SCHOOLS = [
+    '감리교신학대학교','건국대학교','경희대학교','고려대학교','광운대학교','국민대학교',
+    '덕성여자대학교','동국대학교','동덕여자대학교','명지대학교','삼육대학교','상명대학교',
+    '서강대학교','서경대학교','서울과학기술대학교','서울교육대학교','서울기독대학교','서울대학교',
+    '서울시립대학교','서울여자대학교','서울한영대학교','성공회대학교','성균관대학교','성신여자대학교',
+    '세종대학교','숙명여자대학교','숭실대학교','연세대학교','이화여자대학교','장로회신학대학교',
+    '중앙대학교','총신대학교','추계예술대학교','한국성서대학교','한국예술종합학교','한국외국어대학교',
+    '한국체육대학교','한성대학교','한양대학교','홍익대학교','KC대학교'
+  ].sort((a,b) => a.localeCompare(b,'ko'));
+  const SET = new Set(SCHOOLS);
+
+  // ===== 상점 상품: 가격(코인) 조정은 여기서 =====
+  const SHOP = {
+    bg: [
+      {id:'note',   name:'공책',       price:0},
+      {id:'grid',   name:'모눈종이',   price:2000},
+      {id:'chalk',  name:'칠판',       price:4000},
+      {id:'sunset', name:'노을 운동장', price:8000},
+      {id:'night',  name:'별 헤는 밤', price:15000}
+    ],
+    btn: [
+      {id:'basic',  name:'기본 노랑', price:0},
+      {id:'idcard',     name:'학생증',    price:1500},
+      {id:'book',       name:'전공책',    price:3000},
+      {id:'jacket',     name:'과잠',      price:7000},
+      {id:'goldjacket', name:'황금 과잠', price:20000}
+    ],
+    fx: [
+      {id:'plus',  name:'+1',     price:0,    show:'+1'},
+      {id:'heart', name:'하트',   price:1500,  show:'💖'},
+      {id:'star',  name:'반짝 별', price:3500,  show:'⭐'},
+      {id:'burst', name:'폭죽',   price:9000,  show:'🎆'},
+      {id:'cap',   name:'학사모', price:18000, show:'🎓'}
+    ]
+  };
+  const ITEM = {};
+  for (const cat in SHOP) for (const it of SHOP[cat]) ITEM[cat+':'+it.id] = {...it, cat};
+  const DEFAULT_EQUIP = {bg:'note', btn:'basic', fx:'plus'};
+
+  // ===== 버튼 스킨 모양 (SVG) =====
+  const T = (x,y,size,fill,extra) => `<text x="${x}" y="${y}" text-anchor="middle" font-family="Black Han Sans,sans-serif" font-size="${size}" fill="${fill}" ${extra||''}>`;
+  const jacket = (body, sleeve, rib, txt, shine) => `<svg viewBox="0 0 200 200" aria-hidden="true">
+    <g stroke="#1F2A24" stroke-width="5" stroke-linejoin="round">
+      <path d="M72 30C84 44 116 44 128 30L160 42L190 122L166 132L150 94V176H50V94L34 132L10 122L40 42Z" fill="${body}"/>
+      <path d="M150 52L160 42L190 122L166 132L150 94Z" fill="${sleeve}"/>
+      <path d="M50 52L40 42L10 122L34 132L50 94Z" fill="${sleeve}"/>
+      <rect x="50" y="162" width="100" height="14" fill="${rib}"/>
+    </g>
+    ${shine ? '<path d="M58 60L84 46L64 150H54Z" fill="#fff" opacity=".28"/>' : ''}
+    <path d="M75 35C87 48 113 48 125 35" fill="none" stroke="${rib}" stroke-width="6"/>
+    <path d="M170 127l18-8M30 127l-18-8" stroke="${rib}" stroke-width="6"/>
+    <path d="M100 44V162" stroke="#1F2A24" stroke-width="3"/>
+    <circle cx="100" cy="140" r="3.5" fill="${sleeve}" stroke="#1F2A24" stroke-width="2"/>
+    <circle cx="100" cy="153" r="3.5" fill="${sleeve}" stroke="#1F2A24" stroke-width="2"/>
+    ${T(100,116,30,txt,'stroke="#1F2A24" stroke-width="6" paint-order="stroke" stroke-linejoin="round"')}클릭!</text></svg>`;
+  const SKIN_SVG = {
+    idcard: `<svg viewBox="0 0 200 200" aria-hidden="true">
+      <g stroke="#1F2A24" stroke-width="5" stroke-linejoin="round">
+        <rect x="14" y="42" width="172" height="118" rx="14" fill="#F4F8FF"/>
+        <path d="M14 74V56a14 14 0 0 1 14-14h144a14 14 0 0 1 14 14v18z" fill="#3A6FD8"/>
+        <rect x="28" y="88" width="46" height="58" rx="4" fill="#CFDBF2"/>
+      </g>
+      <circle cx="51" cy="108" r="10" fill="#7B8DB3"/><path d="M33 144c2-16 34-16 36 0z" fill="#7B8DB3"/>
+      ${T(100,65,17,'#fff')}학생증</text>
+      <path d="M88 134h82M88 147h54" stroke="#B8C4DA" stroke-width="5" stroke-linecap="round"/>
+      ${T(130,120,34,'#1F2A24')}클릭!</text></svg>`,
+    book: `<svg viewBox="0 0 200 200" aria-hidden="true">
+      <g stroke="#1F2A24" stroke-width="5" stroke-linejoin="round">
+        <rect x="54" y="30" width="118" height="152" rx="6" fill="#FFF9EC"/>
+        <rect x="36" y="18" width="124" height="156" rx="6" fill="#8E3B46"/>
+        <path d="M58 18v156" fill="none"/>
+        <rect x="76" y="42" width="70" height="34" rx="4" fill="#F3E3B5"/>
+      </g>
+      <path d="M164 52h5M164 72h5M164 92h5M164 112h5M164 132h5M164 152h5" stroke="#D9CBA8" stroke-width="2"/>
+      ${T(111,66,18,'#6B2733')}전공</text>
+      ${T(110,134,38,'#F3E3B5')}클릭!</text></svg>`,
+    jacket: jacket('#24335E', '#F1E7D0', '#C8402F', '#F1E7D0', false),
+    goldjacket: jacket('#D4A21E', '#FFF1C2', '#7A5400', '#FFF6D6', true)
+  };
+
+  let selected = null;
+  let state = { school:null, counts:{}, owned:[], equip:{...DEFAULT_EQUIP} };
+  let fs = null, uid = null, connected = false, online = false;
+  let serverTotals = new Map();     // 학교별 서버 합계
+  let pending = {};                 // 아직 서버에 안 보낸 클릭
+  let writing = false, dirty = false, timer = null;
+  let expanded = false, lastTap = 0, statusMsg = '', shopTab = 'bg';
+
+  // ---------- local fallback ----------
+  try{
+    const s = JSON.parse(localStorage.getItem(LS) || 'null');
+    if (s && typeof s === 'object'){
+      if (typeof s.school === 'string') state.school = s.school;
+      state.counts = cleanCounts(s.counts);
+      state.owned = cleanOwned(s.owned);
+      state.equip = cleanEquip(s.equip, state.owned) || {...DEFAULT_EQUIP};
+    }
+  }catch(e){}
+  if (state.school && !SET.has(state.school)) state.school = null;
+  function saveLocal(){ try{ localStorage.setItem(LS, JSON.stringify(state)); }catch(e){} }
+
+  function cleanCounts(c){
+    const out = {};
+    if (!c || typeof c !== 'object') return out;
+    for (const [k,v] of Object.entries(c)){
+      if (k.length <= 30 && typeof v === 'number' && isFinite(v) && v > 0) out[k] = Math.min(Math.floor(v), 1e9);
+    }
+    return out;
+  }
+  function cleanOwned(o){
+    if (!Array.isArray(o)) return [];
+    return [...new Set(o.filter(k => typeof k === 'string' && ITEM[k] && ITEM[k].price > 0))];
+  }
+  function owns(key, list){ return ITEM[key] && (ITEM[key].price === 0 || (list || state.owned).includes(key)); }
+  function cleanEquip(e, owned){
+    if (!e || typeof e !== 'object') return null;
+    const out = {...DEFAULT_EQUIP};
+    for (const cat in DEFAULT_EQUIP) if (typeof e[cat] === 'string' && owns(cat+':'+e[cat], owned)) out[cat] = e[cat];
+    return out;
+  }
+  function norm(s){ return (s||'').normalize('NFC').replace(/\s+/g,'').slice(0,30); }
+
+  // ---------- coins: every click earns 1, purchases subtract ----------
+  function earned(){ let n = 0; for (const v of Object.values(state.counts)) n += v; return n; }
+  function spent(){ let n = 0; for (const k of state.owned) n += ITEM[k] ? ITEM[k].price : 0; return n; }
+  function balance(){ return Math.max(0, earned() - spent()); }
+
+  function applyLook(){
+    document.documentElement.dataset.bg = state.equip.bg;
+    document.body.className = 'bg-' + state.equip.bg;
+    const tap = $('tap'), sk = SKIN_SVG[state.equip.btn];
+    if (tap.dataset.skin !== state.equip.btn){
+      tap.dataset.skin = state.equip.btn;
+      if (sk){ tap.className = 'shaped'; tap.innerHTML = sk; }
+      else { tap.className = 'skin-basic'; tap.textContent = '클릭!'; }
+    }
+  }
+
+  // ---------- render ----------
+  function totals(){
+    const t = new Map();
+    const add = c => { for (const [k,v] of Object.entries(c)) if (SET.has(k)) t.set(k,(t.get(k)||0)+v); };
+    if (online){ add(Object.fromEntries(serverTotals)); add(pending); }
+    else add(state.counts);
+    return [...t.entries()].filter(e => e[1] > 0).sort((a,b) => b[1]-a[1] || a[0].localeCompare(b[0],'ko'));
+  }
+
+  function render(){
+    const ranked = totals();
+    const me = state.school;
+    const myIdx = me ? ranked.findIndex(r => r[0] === me) : -1;
+    const myTotal = myIdx >= 0 ? ranked[myIdx][1] : 0;
+
+    $('schoolText').textContent = me || '학교를 등록하세요';
+    $('total').textContent = fmt(myTotal);
+    $('mineN').textContent = fmt(me ? (state.counts[me]||0) : 0);
+    $('coins').textContent = $('coins2').textContent = fmt(balance());
+    const rk = $('rank');
+    if (myIdx >= 0){ rk.hidden = false; rk.textContent = (myIdx+1) + '위'; } else rk.hidden = true;
+
+    const list = $('list'); list.textContent = '';
+    if (!ranked.length){
+      const li = document.createElement('li'); li.className = 'empty';
+      li.textContent = connected ? '아직 기록이 없어요. 첫 클릭을 남겨 보세요.' : '랭킹을 불러오는 중이에요.';
+      list.appendChild(li);
+    }
+    const shown = expanded ? 10 : 3;
+    ranked.slice(0, shown).forEach((r,i) => list.appendChild(row(i+1, r[0], r[1], r[0]===me)));
+    if (myIdx >= shown){
+      const gap = document.createElement('li'); gap.className='gap'; gap.textContent='⋮'; list.appendChild(gap);
+      list.appendChild(row(myIdx+1, me, myTotal, true));
+    }
+    $('more').hidden = ranked.length <= 3;
+    $('more').textContent = expanded ? '접기' : '10위까지 보기';
+    $('live').classList.toggle('on', connected);
+    $('status').textContent = statusMsg;
+
+    const open = !me || $('reg').dataset.force === '1';
+    $('reg').classList.toggle('open', open);
+    if (open) renderPick(new Map(ranked));
+  }
+  function row(rank, name, count, mine){
+    const li = document.createElement('li'); if (mine) li.className = 'me';
+    const a = document.createElement('span'); a.className='r'; a.textContent = rank;
+    const b = document.createElement('span'); b.className='n'; b.textContent = name.replace(/학교$/,'');
+    b.title = name;
+    const c = document.createElement('span'); c.className='c'; c.textContent = fmt(count);
+    li.append(a,b,c); return li;
+  }
+  function renderPick(tmap){
+    tmap = tmap || new Map(totals());
+    const q = norm($('regInput').value);
+    const ul = $('pick'), keep = ul.scrollTop; ul.textContent = '';
+    const hits = SCHOOLS.filter(s => !q || s.includes(q));
+    if (!hits.length){
+      const li = document.createElement('li'); li.className = 'none';
+      li.textContent = '목록에 없는 학교예요. 곧 추가될 예정이에요.'; ul.appendChild(li);
+    }
+    hits.forEach(s => {
+      const li = document.createElement('li');
+      const b = document.createElement('button'); b.type = 'button'; b.setAttribute('role','option');
+      b.setAttribute('aria-selected', String(s === selected));
+      const n = document.createElement('b'); n.style.fontWeight = '400'; n.textContent = s;
+      const c = document.createElement('span'); c.textContent = tmap.get(s) ? fmt(tmap.get(s)) + '회' : '';
+      b.append(n, c);
+      b.addEventListener('click', () => { selected = s; $('regErr').textContent = ''; renderPick(); });
+      li.appendChild(b); ul.appendChild(li);
+    });
+    ul.scrollTop = keep;
+    $('regGo').disabled = !selected;
+  }
+
+  // ---------- clicking ----------
+  const btn = $('tap');
+  btn.addEventListener('click', e => {
+    if (!state.school){ openReg(); return; }
+    const now = performance.now();
+    if (now - lastTap < 45) return;           // auto-clicker guard
+    lastTap = now;
+    state.counts[state.school] = (state.counts[state.school]||0) + 1;
+    pending[state.school] = (pending[state.school]||0) + 1;
+    saveLocal(); render(); effect(e); schedule();
+    const pill = $('coinPill'); pill.classList.remove('bump'); void pill.offsetWidth; pill.classList.add('bump');
+  });
+
+  function spawn(cls, text, x, y, vars, life){
+    const s = document.createElement('span'); s.className = 'fx ' + cls;
+    if (text) s.textContent = text;
+    s.style.left = x + 'px'; s.style.top = y + 'px';
+    if (vars) for (const k in vars) s.style.setProperty(k, vars[k]);
+    document.body.appendChild(s); setTimeout(() => s.remove(), life);
+  }
+  const pickOne = a => a[Math.floor(Math.random()*a.length)];
+  function effect(e){
+    if (matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+    const r = btn.getBoundingClientRect();
+    const x = e.clientX || (r.left + r.width/2), y = e.clientY || (r.top + r.height/2);
+    const jitter = () => (Math.random()*40-20) + 'px';
+    switch (state.equip.fx){
+      case 'heart': spawn('fx-float', pickOne(['💖','💕','💗','💘']), x, y, {'--dx':jitter()}, 900); break;
+      case 'star':
+        spawn('fx-float', pickOne(['⭐','🌟']), x, y, {'--dx':jitter()}, 900);
+        spawn('fx-float', '✨', x + 20, y - 10, {'--dx':jitter()}, 900); break;
+      case 'burst': {
+        const colors = ['#F2B705','#E5533D','#5FD3B3','#6C8CFF','#FF7FBF'];
+        for (let i = 0; i < 10; i++){
+          const a = (Math.PI*2*i)/10 + Math.random()*.4, d = 50 + Math.random()*30;
+          spawn('fx-dot', '', x, y, {'--dx':Math.cos(a)*d+'px','--dy':Math.sin(a)*d+'px', background:colors[i%5]}, 600);
+        }
+        spawn('fx-up', '+1', x, y, null, 700); break;
+      }
+      case 'cap': spawn('fx-cap', '🎓', x, y, {'--dx':jitter(), '--rot':(Math.random()*120-60)+'deg'}, 900); break;
+      default: spawn('fx-up', '+1', x + (Math.random()*40-20), y, null, 700);
+    }
+  }
+
+  // ---------- shop ----------
+  function renderShop(){
+    document.querySelectorAll('.tabs button').forEach(b => b.setAttribute('aria-selected', String(b.dataset.tab === shopTab)));
+    const ul = $('items'); ul.textContent = '';
+    const bal = balance();
+    for (const it of SHOP[shopTab]){
+      const key = shopTab + ':' + it.id;
+      const have = owns(key), on = state.equip[shopTab] === it.id;
+      const li = document.createElement('li'); li.className = 'item' + (on ? ' on' : '');
+      const pv = document.createElement('div'); pv.className = 'pv';
+      if (shopTab === 'bg'){ pv.classList.add('pv-bg', 'bg-' + it.id); }
+      else if (shopTab === 'btn'){
+        if (SKIN_SVG[it.id]) pv.innerHTML = SKIN_SVG[it.id];
+        else { const c = document.createElement('div'); c.className = 'pv-btn skin-basic'; pv.appendChild(c); }
+      }
+      else { const t = document.createElement('span'); t.className = 'pv-fx'; t.textContent = it.show; pv.appendChild(t); }
+      const name = document.createElement('b'); name.textContent = it.name;
+      const b = document.createElement('button'); b.type = 'button';
+      if (on){ b.className = 'equipped'; b.textContent = '사용 중'; b.disabled = true; }
+      else if (have){ b.className = 'equip'; b.textContent = '사용하기'; b.onclick = () => equip(shopTab, it.id); }
+      else {
+        const c = document.createElement('span'); c.className = 'coin'; c.setAttribute('aria-hidden','true');
+        b.append(c, document.createTextNode(fmt(it.price) + ' 구매'));
+        b.setAttribute('aria-label', it.name + ' ' + it.price + '코인에 구매');
+        if (bal < it.price) b.disabled = true;
+        b.onclick = () => buy(key);
+      }
+      li.append(pv, name, b); ul.appendChild(li);
+    }
+  }
+  function buy(key){
+    const it = ITEM[key]; if (!it || owns(key)) return;
+    if (balance() < it.price){ $('shopMsg').textContent = '코인이 ' + fmt(it.price - balance()) + '개 모자라요. 조금만 더 눌러 볼까요?'; return; }
+    state.owned.push(key);
+    state.equip[it.cat] = it.id;
+    $('shopMsg').textContent = it.name + '을(를) 샀어요. 바로 적용했어요.';
+    afterChange();
+  }
+  function equip(cat, id){
+    state.equip[cat] = id;
+    $('shopMsg').textContent = ITEM[cat+':'+id].name + ' 적용 완료.';
+    afterChange();
+  }
+  function afterChange(){ saveLocal(); applyLook(); render(); renderShop(); schedule(); }
+
+  $('shopBtn').addEventListener('click', () => { $('shopMsg').textContent = ''; renderShop(); $('shop').classList.add('open'); });
+  $('shopClose').addEventListener('click', () => $('shop').classList.remove('open'));
+  $('shop').addEventListener('click', e => { if (e.target === $('shop')) $('shop').classList.remove('open'); });
+  document.querySelectorAll('.tabs button').forEach(b => b.addEventListener('click', () => { shopTab = b.dataset.tab; $('shopMsg').textContent = ''; renderShop(); }));
+  document.addEventListener('keydown', e => { if (e.key === 'Escape') $('shop').classList.remove('open'); });
+
+  // ---------- syncing (Firebase) ----------
+  const MAX_PER_WRITE = 100;   // 보안 규칙과 같은 값
+  function schedule(){
+    if (!fs || !uid) return;
+    dirty = true;
+    if (!timer && !writing) timer = setTimeout(flush, 1500);
+  }
+  async function flush(){
+    timer = null;
+    if (writing || !dirty || !fs || !uid) return;
+    writing = true; dirty = false;
+    const sending = {};
+    for (const [s,n] of Object.entries(pending)){
+      const k = Math.min(n, MAX_PER_WRITE);
+      if (k > 0 && SET.has(s)) sending[s] = k;
+    }
+    for (const [s,k] of Object.entries(sending)){ pending[s] -= k; if (pending[s] <= 0) delete pending[s]; }
+    try{
+      const batch = fs.batch();
+      const inc = firebase.firestore.FieldValue.increment;
+      for (const [s,k] of Object.entries(sending)) batch.set(fs.collection('schools').doc(s), {name: s, total: inc(k)}, {merge: true});
+      batch.set(fs.collection('users').doc(uid), {
+        school: state.school || '', counts: {...state.counts}, owned: [...state.owned], equip: {...state.equip},
+        updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+      });
+      await batch.commit();
+      if (statusMsg.startsWith('저장이')) statusMsg = '';
+    }catch(e){
+      for (const [s,k] of Object.entries(sending)) pending[s] = (pending[s]||0) + k;
+      dirty = true;
+      statusMsg = '저장이 잠시 안 되고 있어요. 자동으로 다시 시도할게요.';
+      render();
+    }finally{
+      writing = false;
+      if (Object.keys(pending).length) dirty = true;
+      if (dirty) timer = setTimeout(flush, writing ? 3000 : 1500);
+    }
+  }
+  document.addEventListener('visibilitychange', () => { if (document.hidden && dirty){ clearTimeout(timer); flush(); } });
+
+  function mergeMine(data){
+    const remote = cleanCounts(data.counts);
+    for (const [k,v] of Object.entries(remote)) if ((state.counts[k]||0) < v) state.counts[k] = v;
+    for (const k of cleanOwned(data.owned)) if (!state.owned.includes(k)) state.owned.push(k);
+    const rEquip = cleanEquip(data.equip, state.owned);
+    if (rEquip) state.equip = rEquip;
+    if (!state.school && typeof data.school === 'string' && SET.has(data.school)) state.school = data.school;
+    saveLocal(); applyLook();
+  }
+
+  function connect(){
+    const configured = window.firebase && !String(firebaseConfig.apiKey).startsWith('여기에');
+    if (!configured){ statusMsg = '서버 설정 전이라 기록은 이 기기에만 저장돼요.'; render(); return; }
+    try{
+      firebase.initializeApp(firebaseConfig);
+      fs = firebase.firestore();
+    }catch(e){ statusMsg = '서버에 연결하지 못했어요. 기록은 이 기기에 저장돼요.'; render(); return; }
+
+    const slow = setTimeout(() => { if (!connected){ statusMsg = '랭킹 연결이 느려요. 잠시만 기다려 주세요.'; render(); } }, 10000);
+    fs.collection('schools').orderBy('total','desc').limit(100).onSnapshot(snap => {
+      const m = new Map();
+      snap.forEach(d => { const v = d.data().total; if (SET.has(d.id) && typeof v === 'number' && v > 0) m.set(d.id, v); });
+      serverTotals = m; online = true;
+      if (!snap.metadata.fromCache){
+        clearTimeout(slow); connected = true;
+        if (statusMsg.startsWith('랭킹 연결이 느려요')) statusMsg = '';
+      }
+      render();
+    }, () => { clearTimeout(slow); statusMsg = '랭킹을 불러오지 못했어요.'; render(); });
+
+    firebase.auth().onAuthStateChanged(async u => {
+      if (!u){   // 익명 계정이 삭제·만료되면 새 계정으로 자동 재로그인
+        uid = null;
+        firebase.auth().signInAnonymously().catch(() => {});
+        return;
+      }
+      uid = u.uid;
+      try{
+        const doc = await fs.collection('users').doc(uid).get();
+        if (doc.exists) mergeMine(doc.data());
+      }catch(e){}
+      render();
+      if (Object.keys(pending).length || state.school) schedule();
+    });
+  }
+
+  // ---------- register ----------
+  function openReg(){
+    $('reg').dataset.force = '1';
+    selected = state.school;
+    $('regInput').value = '';
+    $('regErr').textContent = '';
+    $('regCancel').hidden = !state.school;
+    $('pick').scrollTop = 0;
+    render();
+  }
+  function closeReg(){ $('reg').dataset.force = ''; render(); }
+  $('change').addEventListener('click', openReg);
+  $('regCancel').addEventListener('click', closeReg);
+  $('regInput').addEventListener('input', () => { $('pick').scrollTop = 0; renderPick(); });
+  $('regForm').addEventListener('submit', e => {
+    e.preventDefault();
+    if (!selected){
+      const q = norm($('regInput').value);
+      const hits = SCHOOLS.filter(s => q && s.includes(q));
+      if (hits.length === 1) selected = hits[0];
+    }
+    if (!selected || !SET.has(selected)){ $('regErr').textContent = '목록에서 학교를 골라 주세요.'; return; }
+    state.school = selected;
+    saveLocal(); closeReg(); schedule();
+  });
+  $('more').addEventListener('click', () => { expanded = !expanded; render(); });
+
+  $('regCancel').hidden = !state.school;
+  applyLook();
+  render();
+  connect();
+})();
+</script>
+</body>
+</html>
